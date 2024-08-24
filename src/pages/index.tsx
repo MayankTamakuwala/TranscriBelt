@@ -1,7 +1,6 @@
 import { Boxes } from "@/components/ui/background-boxes";
 import { Button } from "@/components/ui/button";
 import {FileUpload} from "@/components/ui/file-upload"
-import { cn } from "@/lib/utils";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
@@ -18,7 +17,7 @@ export default function Home() {
         body: form
       })
     } else {
-      toast.error("Not an Accepted Type")
+      toast.error("Not a Supported File Type")
     }
   }
 
