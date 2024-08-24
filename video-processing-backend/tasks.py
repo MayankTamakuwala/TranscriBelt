@@ -7,11 +7,19 @@ import os
 import tempfile
 import ffmpeg
 import uuid
+import torch
+import boto3
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from datetime import timedelta
-
+from dotenv import load_dotenv
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+load_dotenv()
+s3obj = boto3.client("s3", aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID"),
+                     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+                     region_name=os.environ.get("AWS_REGION"))
 
 celery_app = Celery('tasks', broker='redis://localhost:6379', backend='redis://localhost:6379')
 
@@ -43,8 +51,15 @@ def process_video_task(self, video_path: str):
         self.update_state(state='PROGRESS', meta={'status': 'SubRip Subtitle Made', 'progress': 0.8})
         logger.info("SRT file generation completed")
 
+        transcriptFile = create_srt_file(srt_content)
+        # file_upload_to_s3(transcriptFile)
+
         final_video = add_captions_to_video(video_path, transcript, audio_path)
         logger.info(f"Video processing completed. Final video: {final_video}")
+        print("\n\n\n\nAjay Rocks\n\n", os.environ.get("AWS_REGION"),
+              "\n\n\n", os.environ.get("AWS_SECRET_ACCESS_KEY"), "\n\n\n", os.environ.get("AWS_ACCESS_KEY_ID"),  "\n\n\n")
+        file_upload_to_s3(final_video, os.environ.get(
+            "S3_BUCKET_NAME"), f"test2/{os.path.basename(final_video)}")
         return {'status': 'Completed', 'progress': 1.0, 'result_url': f"/download/{os.path.basename(final_video)}"}
     
     except Exception as e:
@@ -117,6 +132,42 @@ def generate_srt(transcription_data):
     
     logger.info("SRT file generation completed")
     return srt_content
+
+def create_srt_file(data):
+    file  = open("hello32.txt",'w')
+    file.write(data)
+    file.close()
+    return file
+
+
+def file_upload_to_s3(file_path: str, bucket_name: str, s3_key: str) -> str:
+    """
+    Upload a file to an S3 bucket.
+
+    :param file_path: The local path to the file to upload.
+    :param bucket_name: The name of the S3 bucket to upload to.
+    :param s3_key: The S3 object key (i.e., the file path within the bucket).
+    :param content_type: The content type (MIME type) of the file. Optional.
+    :return: The URL of the uploaded file in S3.
+    """
+
+    try:
+
+        # Upload the file to S3
+        s3obj.upload_file(
+            Filename=file_path,  # Local file path
+            Bucket=bucket_name,  # S3 bucket name
+            Key=s3_key          # S3 key (path in the bucket)
+        )
+
+        # Return the file URL
+        file_url = f"https://{bucket_name}.s3.amazonaws.com/{s3_key}"
+        return file_url
+
+    except (NoCredentialsError, PartialCredentialsError) as e:
+        raise Exception("AWS credentials not available") from e
+    except Exception as e:
+        raise Exception("File upload to S3 failed") from e
 
 def get_optimal_font_scale(text: str, width: int) -> float:
     """

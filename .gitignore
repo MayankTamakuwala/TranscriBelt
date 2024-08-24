@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+newJellyEnv
+
 # Distribution / packaging
 .Python
 build/
@@ -121,7 +123,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+
 # Environments
+video-processing-backend/.env
 .env
 .venv
 env/
