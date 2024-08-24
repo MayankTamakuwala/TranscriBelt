@@ -44,10 +44,10 @@ async def process_video_task(video_path: str, task_id: str):
         audio_path = await extract_audio(video_path)
         update_status(task_id, "Extracted audio", 0.2)
 
-        # transcript = await generate_transcript(audio_path)
-        # update_status(task_id, "Transcribed", 0.6)
-        with open('test.json', 'r') as f:
-            transcript = json.load(f)
+        transcript = await generate_transcript(audio_path)
+        update_status(task_id, "Transcribed", 0.6)
+        # with open('test.json', 'r') as f:
+        #     transcript = json.load(f)
 
         final_video = await add_captions_to_video("./videoplayback.mp4", transcript, audio_path)
         update_status(task_id, "Completed", 1.0, f"/download/{os.path.basename(final_video)}")
