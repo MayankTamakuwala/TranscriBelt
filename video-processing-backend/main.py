@@ -14,6 +14,7 @@ import logging
 import json
 import ffmpeg
 import uuid
+from datetime import timedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,9 +46,12 @@ async def process_video_task(video_path: str, task_id: str):
         update_status(task_id, "Extracted audio", 0.2)
 
         transcript = await generate_transcript(audio_path)
-        update_status(task_id, "Transcribed", 0.6)
+        update_status(task_id, "Transcribed", 0.5)
         # with open('test.json', 'r') as f:
         #     transcript = json.load(f)
+
+        srt_content = generate_srt(transcript)
+        update_status(task_id, "SubRip Subtitle Made", 0.8)
 
         final_video = await add_captions_to_video("./videoplayback.mp4", transcript, audio_path)
         update_status(task_id, "Completed", 1.0, f"/download/{os.path.basename(final_video)}")
@@ -146,6 +150,26 @@ async def add_captions_to_video(video_path: str, transcription: object, audio_pa
     os.remove(audio_path)
 
     return final_output_path
+
+def timedelta_to_srt_time(td):
+    """Convert a timedelta to SRT time format (HH:MM:SS,mmm)"""
+    total_seconds = int(td.total_seconds())
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    milliseconds = int(td.microseconds / 1000)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
+def generate_srt(transcription_data):
+    srt_content = ""
+    for i, segment in enumerate(transcription_data['segments'], start=1):
+        start_time = timedelta(seconds=segment['start'])
+        end_time = timedelta(seconds=segment['end'])
+        
+        srt_content += f"{i}\n"
+        srt_content += f"{timedelta_to_srt_time(start_time)} --> {timedelta_to_srt_time(end_time)}\n"
+        srt_content += f"{segment['text'].strip()}\n\n"
+    
+    return srt_content
 
 @app.post("/upload")
 async def upload_video(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
