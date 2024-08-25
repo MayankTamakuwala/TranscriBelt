@@ -40,6 +40,9 @@ export default function ResultPage() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
     const { isLoaded, userId } = useAuth()
+    const [commentSummary, setCommentSummary] = useState<string | null>(null)
+
+    
 
     useEffect(() => {
         if (isLoaded && !userId) {
@@ -58,6 +61,7 @@ export default function ResultPage() {
                     const data = await response.json()
                     const videoFile = data.files.find((file: S3File) => file.name.endsWith('.mp4'))
                     const textFile = data.files.find((file: S3File) => file.name.endsWith('.txt'))
+                    
 
                     if (videoFile) {
                         setVideoUrl(`/api/s3/getS3Video?folderId=${folderId}&fileName=${videoFile.name}`)
@@ -176,243 +180,270 @@ export default function ResultPage() {
         }
     }
 
-    const editComment = async (commentId: string, editedText: string) => {
-        if (folderId && typeof folderId === 'string') {
-            try {
-                const response = await fetch('/api/dynamodb/editComment', {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        folderId,
-                        commentId,
-                        editedText,
-                    }),
-                });
+    const getCommentSummary = async (comment: Comment[]) => {
+        // console.log("reached here")
+        const comments = comment.map((item) => item.text);
+        const strComments = comments.toString()
+        // console.log(strComments)
+        try {
+            const response = await fetch('/api/dynamodb/getCommentSummary', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ items: strComments, summary: summary }),
+            })
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Failed to edit comment');
-                }
-
-                const data = await response.json();
-                // Update the local state
-                setComments(prevComments =>
-                    prevComments.map(comment =>
-                        comment.commentId === commentId
-                            ? { ...comment, text: editedText, edited: true, updatedAt: new Date().toISOString() }
-                            : comment
-                    )
-                );
-
-                setEditingCommentId(null);
-                toast.success("Your comment has been successfully updated.");
-            } catch (error: any) {
-                console.error('Error editing comment:', error);
-                toast.error(error.message || "Failed to edit comment. Please try again.");
+            if (!response.ok) {
+                throw new Error('Failed to generate summary.')
             }
+
+            const data = (await response.json()).data  
+            // console.log(data)
+
+            setCommentSummary(data)
+            toast.success("Your summary has been generated.")
+        
+        } catch (error) {
+            console.error('Error generating summary:', error)
+            toast.error("Failed to generate summary. Please try again.")
         }
-    };
+    }
 
-    const handleDeleteComment = async (commentId: string) => {
-        if (folderId && typeof folderId === 'string') {
-            try {
-                const response = await fetch(`/api/dynamodb/deleteComment?folderId=${folderId}&commentId=${commentId}`, {
-                    method: 'DELETE',
-                });
 
-                if (!response.ok) {
-                    throw new Error('Failed to delete comment');
-                }
+const editComment = async (commentId: string, editedText: string) => {
+    if (folderId && typeof folderId === 'string') {
+        try {
+            const response = await fetch('/api/dynamodb/editComment', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    folderId,
+                    commentId,
+                    editedText,
+                }),
+            });
 
-                // Remove the comment from the local state
-                setComments(prevComments => prevComments.filter(comment => comment.commentId !== commentId));
-                toast.success("Comment deleted successfully.");
-            } catch (error) {
-                console.error('Error deleting comment:', error);
-                toast.error("Failed to delete comment. Please try again.");
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to edit comment');
             }
+
+            const data = await response.json();
+            // Update the local state
+            setComments(prevComments =>
+                prevComments.map(comment =>
+                    comment.commentId === commentId
+                        ? { ...comment, text: editedText, edited: true, updatedAt: new Date().toISOString() }
+                        : comment
+                )
+            );
+
+            setEditingCommentId(null);
+            toast.success("Your comment has been successfully updated.");
+        } catch (error: any) {
+            console.error('Error editing comment:', error);
+            toast.error(error.message || "Failed to edit comment. Please try again.");
         }
-    };
+    }
+};
 
-    const openDeleteDialog = (commentId: string) => {
-        setCommentToDelete(commentId);
-        setIsDeleteDialogOpen(true);
-    };
+const handleDeleteComment = async (commentId: string) => {
+    if (folderId && typeof folderId === 'string') {
+        try {
+            const response = await fetch(`/api/dynamodb/deleteComment?folderId=${folderId}&commentId=${commentId}`, {
+                method: 'DELETE',
+            });
 
-    const closeDeleteDialog = () => {
-        setCommentToDelete(null);
-        setIsDeleteDialogOpen(false);
-    };
+            if (!response.ok) {
+                throw new Error('Failed to delete comment');
+            }
 
-    const confirmDelete = () => {
-        if (commentToDelete) {
-            handleDeleteComment(commentToDelete);
-            closeDeleteDialog();
+            // Remove the comment from the local state
+            setComments(prevComments => prevComments.filter(comment => comment.commentId !== commentId));
+            toast.success("Comment deleted successfully.");
+        } catch (error) {
+            console.error('Error deleting comment:', error);
+            toast.error("Failed to delete comment. Please try again.");
         }
-    };
+    }
+};
 
-    const renderComments = () => {
-        return comments.map((comment) => (
-            <Card key={comment.commentId} className="mb-4">
-                <CardHeader>
-                    <CardTitle className="text-sm font-medium flex justify-between items-center">
-                        <div>
-                            <span className='underline'>Comment on:</span>
-                            <span className='italic'>{`${comment.ref_text.text}`}</span>
-                        </div>
+const openDeleteDialog = (commentId: string) => {
+    setCommentToDelete(commentId);
+    setIsDeleteDialogOpen(true);
+};
+
+const closeDeleteDialog = () => {
+    setCommentToDelete(null);
+    setIsDeleteDialogOpen(false);
+};
+
+const confirmDelete = () => {
+    if (commentToDelete) {
+        handleDeleteComment(commentToDelete);
+        closeDeleteDialog();
+    }
+};
+
+const renderComments = () => {
+    return comments.map((comment) => (
+        <Card key={comment.commentId} className="mb-4">
+            <CardHeader>
+                <CardTitle className="text-sm font-medium flex justify-between items-center">
+                    <div>
+                        <span className='underline'>Comment on:</span>
+                        <span className='italic'>{`${comment.ref_text.text}`}</span>
+                    </div>
+                    {comment.commentedBy === userId && (
+                        <Button variant="outline" size="icon" onClick={() => openDeleteDialog(comment.commentId)}>
+                            <Image
+                                src={require("@/assets/delete.png")}
+                                alt="Delete"
+                                className='w-5 h-5'
+                            />
+                        </Button>
+                    )}
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                {editingCommentId === comment.commentId ? (
+                    <EditComment
+                        comment={comment}
+                        onSave={(editedText) => editComment(comment.commentId, editedText)}
+                        onCancel={() => setEditingCommentId(null)}
+                    />
+                ) : (
+                    <>
+                        <p>{comment.text}</p>
+                        <p className="text-sm text-gray-500 mt-2">
+                            {new Date(comment.timestamp).toLocaleString()}
+                            {comment.edited && " (edited)"}
+                        </p>
                         {comment.commentedBy === userId && (
-                            <Button variant="outline" size="icon" onClick={() => openDeleteDialog(comment.commentId)}>
-                                <Image
-                                    src={require("@/assets/delete.png")}
-                                    alt="Delete"
-                                    className='w-5 h-5'
-                                />
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingCommentId(comment.commentId)}
+                                className="mt-2"
+                            >
+                                Edit
                             </Button>
                         )}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {editingCommentId === comment.commentId ? (
-                        <EditComment
-                            comment={comment}
-                            onSave={(editedText) => editComment(comment.commentId, editedText)}
-                            onCancel={() => setEditingCommentId(null)}
-                        />
-                    ) : (
-                        <>
-                            <p>{comment.text}</p>
-                            <p className="text-sm text-gray-500 mt-2">
-                                {new Date(comment.timestamp).toLocaleString()}
-                                {comment.edited && " (edited)"}
-                            </p>
-                            {comment.commentedBy === userId && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setEditingCommentId(comment.commentId)}
-                                    className="mt-2"
-                                >
-                                    Edit
-                                </Button>
-                            )}
-                        </>
-                    )}
-                </CardContent>
-            </Card>
-        ));
-    };
-
-    if (loading || !isLoaded) {
-        return <div className="flex justify-center items-center h-screen">
-            <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-    }
-
-    if (error) {
-        return <div className="container mx-auto py-8">Error: {error}</div>
-    }
-
-    return (
-        <div className="container mx-auto py-8 flex flex-col">
-            <div className='flex justify-between w-full items-center pt-14 sticky top-0 bg-white z-40'>
-                <Button variant='ghost' onClick={() => { router.push("/") }} className='flex justify-center items-center gap-2'>
-                    <Image
-                        src={require("@/assets/back.png")}
-                        alt="Back to Dashboard"
-                        className='w-5 h-5'
-                    />
-                    <span>Go Back</span>
-                </Button>
-                <h1 className="text-2xl font-bold mb-4">Result for Folder ID: {folderId}</h1>
-            </div>
-            <div className="flex flex-col lg:flex-row lg:space-x-8">
-                {videoUrl && (
-                    <div className="mb-8 lg:w-1/2">
-                        <h2 className="text-xl font-semibold mb-2">Processed Video</h2>
-                        <video controls className="w-full rounded-md">
-                            <source src={videoUrl} type="video/mp4" />
-                            Your browser does not support the video tag.
-                        </video>
-                    </div>
+                    </>
                 )}
-                <div className="mb-8 lg:w-1/2">
-                    <h2 className="text-xl font-semibold mb-2">Text Content</h2>
-                    <Tabs defaultValue="extracted" 
-                    // onValueChange={(value) => {
-                    //     if (value === "summary") {
-                    //         fetchSummary()
-                    //     }
-                    // }}
-                    >
-                        <TabsList>
-                            <TabsTrigger value="extracted">Extracted Text</TabsTrigger>
-                            <TabsTrigger value="summary">Summarize</TabsTrigger>
-                            <TabsTrigger value="comments">Comments</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="extracted">
-                            {textContent ? (
-                                <div>
-                                    <pre
-                                        ref={textRef}
-                                        className="bg-gray-100 p-4 rounded overflow-auto max-h-[calc(100vh-300px)]"
-                                        onMouseUp={handleTextSelection}
-                                    >
-                                        {textContent}
-                                    </pre>
-                                    {selectedText.text && (
-                                        <div className="mt-4">
-                                            <Input
-                                                placeholder="Type your comment here"
-                                                value={newComment}
-                                                onChange={(e) => setNewComment(e.target.value)}
-                                                className="mb-2"
-                                                onKeyPress={(e) => { e.key === "Enter" ? addComment() : null }}
-                                            />
-                                            <Button onClick={addComment}>Add Comment</Button>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                <div>No extracted text available.</div>
-                            )}
-                        </TabsContent>
-                        <TabsContent value="summary">
-                            {summaryLoading ? (
-                                <div className="flex justify-center items-center h-[calc(100vh-300px)]">
-                                    <Loader2 className="h-8 w-8 animate-spin" />
-                                </div>
-                            ) : summary ? (
-                                <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-[calc(100vh-300px)] text-wrap">
-                                    <div>{parse(summary)}</div>
-                                </pre>
-                            ) : (
-                                <div>No summary available.</div>
-                            )}
-                        </TabsContent>
-                        <TabsContent value="comments">
-                            <div className="overflow-auto max-h-[calc(100vh-300px)]">
-                                {comments.length > 0 ? renderComments() : <div>No comments yet.</div>}
-                            </div>
-                        </TabsContent>
-                    </Tabs>
-                </div>
-            </div>
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure you want to delete this comment?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete your comment.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            </CardContent>
+        </Card>
+    ));
+};
+
+if (loading || !isLoaded) {
+    return <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+    </div>
+}
+
+if (error) {
+    return <div className="container mx-auto py-8">Error: {error}</div>
+}
+
+return (
+    <div className="container mx-auto py-8 flex flex-col">
+        <div className='flex justify-between w-full items-center pt-14 sticky top-0 bg-white z-40'>
+            <Button variant='ghost' onClick={() => { router.push("/") }} className='flex justify-center items-center gap-2'>
+                <Image
+                    src={require("@/assets/back.png")}
+                    alt="Back to Dashboard"
+                    className='w-5 h-5'
+                />
+                <span>Go Back</span>
+            </Button>
+            <h1 className="text-2xl font-bold mb-4">Result for Folder ID: {folderId}</h1>
         </div>
-    )
+        <div className="flex flex-col lg:flex-row lg:space-x-8">
+            {videoUrl && (
+                <div className="mb-8 lg:w-1/2">
+                    <h2 className="text-xl font-semibold mb-2">Processed Video</h2>
+                    <video controls className="w-full rounded-md">
+                        <source src={videoUrl} type="video/mp4" />
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            )}
+            <div className="mb-8 lg:w-1/2">
+                <h2 className="text-xl font-semibold mb-2">Text Content</h2>
+                <Tabs defaultValue="extracted" >
+                    <TabsList>
+                        <TabsTrigger value="extracted">Extracted Text</TabsTrigger>
+                        <TabsTrigger value="summary">Summarize</TabsTrigger>
+                        <TabsTrigger value="comments">Comments</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="extracted">
+                        {textContent ? (
+                            <div>
+                                <pre
+                                    ref={textRef}
+                                    className="bg-gray-100 p-4 rounded overflow-auto max-h-[calc(100vh-300px)]"
+                                    onMouseUp={handleTextSelection}
+                                >
+                                    {textContent}
+                                </pre>
+                                {selectedText.text && (
+                                    <div className="mt-4">
+                                        <Input
+                                            placeholder="Type your comment here"
+                                            value={newComment}
+                                            onChange={(e) => setNewComment(e.target.value)}
+                                            className="mb-2"
+                                            onKeyPress={(e) => { e.key === "Enter" ? addComment() : null }}
+                                        />
+                                        <Button onClick={addComment}>Add Comment</Button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div>No extracted text available.</div>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="summary">
+                        {summaryLoading ? (
+                            <div className="flex justify-center items-center h-[calc(100vh-300px)]">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                            </div>
+                        ) : summary ? (
+                            <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-[calc(100vh-300px)] text-wrap">
+                                <div>{parse(summary)}</div>
+                            </pre>
+                        ) : (
+                            <div>No summary available.</div>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="comments">
+                        <Button onClick={()=>{getCommentSummary(comments)}}>Summarize comments</Button>
+                        <div className="overflow-auto max-h-[calc(100vh-300px)]">
+                            {commentSummary && (<p>{commentSummary}</p>)}
+                            {comments.length > 0 ? renderComments() : <div>No comments yet.</div>}
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </div>
+        </div>
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure you want to delete this comment?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your comment.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    </div>
+)
 }
