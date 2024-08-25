@@ -121,7 +121,7 @@ export default function Home() {
             {resultData && (
               <div className="z-50 mt-4">
                 <p>Processing completed!</p>
-                <Link href={`/${resultData.folder_id}`}>
+                <Link href={`/videos/${resultData.folder_id}`}>
                   <Button className="mt-2">
                     View Results
                   </Button>

@@ -72,6 +72,9 @@ export default function ResultPage() {
                         setTextContent(text)
                     }
 
+                    //Fetch Summary
+                    await fetchSummary()
+
                     // Fetch comments
                     await getComments()
 
@@ -336,11 +339,13 @@ export default function ResultPage() {
                 )}
                 <div className="mb-8 lg:w-1/2">
                     <h2 className="text-xl font-semibold mb-2">Text Content</h2>
-                    <Tabs defaultValue="extracted" onValueChange={(value) => {
-                        if (value === "summary") {
-                            fetchSummary()
-                        }
-                    }}>
+                    <Tabs defaultValue="extracted" 
+                    // onValueChange={(value) => {
+                    //     if (value === "summary") {
+                    //         fetchSummary()
+                    //     }
+                    // }}
+                    >
                         <TabsList>
                             <TabsTrigger value="extracted">Extracted Text</TabsTrigger>
                             <TabsTrigger value="summary">Summarize</TabsTrigger>
