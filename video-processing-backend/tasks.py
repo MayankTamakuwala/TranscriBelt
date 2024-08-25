@@ -7,11 +7,9 @@ import os
 import tempfile
 import ffmpeg
 import uuid
-import torch
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from datetime import timedelta
-import torch
 from dotenv import load_dotenv
 
 # Set up logging
@@ -62,10 +60,8 @@ def process_video_task(self, video_path: str):
         file_upload_to_s3(transcriptfile, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(transcriptfile)}")
         file_upload_to_s3(final_video, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(final_video)}")
 
-        file1 = os.path.basename(final_video)
-        file2 = os.path.basename(transcriptfile)
         os.remove(transcriptfile)
-        return {'status': 'Completed', 'progress': 1.0, 'result_video_url': f"{file1}", 'result_txt_url': f"{file2}", 'folder_id': f"{folder_id}"}
+        return {'status': 'Completed', 'progress': 1.0, 'folder_id': f"{folder_id}"}
     
     except Exception as e:
         logger.error(f"Error in video processing task: {str(e)}", exc_info=True)
@@ -230,9 +226,7 @@ def generate_transcript(audio_path: str):
         >>> transcription = generate_transcript('path/to/audio.wav')
     """
     logger.info(f"Starting transcription for {audio_path}")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"Using device: {device} for transcription")
-    model = whisper.load_model("base", device=device)
+    model = whisper.load_model("base")
     try:
         result = model.transcribe(audio_path, word_timestamps=True)
         logger.info("Transcription completed successfully")
