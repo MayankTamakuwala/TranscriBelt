@@ -252,22 +252,11 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
     }
 
     return (
-        <div className="container mx-auto py-8 flex flex-col">
-            <div className='flex justify-between w-full items-center pt-14 sticky top-0 bg-white z-40'>
-                <Button variant='ghost' onClick={() => { router.push("/") }} className='flex justify-center items-center gap-2'>
-                    <Image
-                        src={require("@/assets/back.png")}
-                        alt="Back to Dashboard"
-                        className='w-5 h-5'
-                    />
-                    <span>Go Back</span>
-                </Button>
-                <h1 className="text-2xl font-bold mb-4">Result for Folder ID: {folderId}</h1>
-            </div>
-            <div className="flex flex-col lg:flex-row lg:space-x-8">
+        <div className="container mx-auto w-full py-8 flex flex-col bg-slate-700 overflow-auto">
+            <div className="flex flex-col lg:space-x-8 w-full justify-center items-center">
                 {videoUrl && (
                     <div className="mb-8 lg:w-1/2">
-                        <h2 className="text-xl font-semibold mb-2">Processed Video</h2>
+                        <h2 className="text-xl font-semibold mb-2 text-muted">Processed Video</h2>
                         <video controls className="w-full rounded-md">
                             <source src={videoUrl} type="video/mp4" />
                             Your browser does not support the video tag.
@@ -275,12 +264,14 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
                     </div>
                 )}
                 <div className="mb-8 lg:w-1/2">
-                    <h2 className="text-xl font-semibold mb-2">Text Content</h2>
-                    <Tabs defaultValue="extracted" onValueChange={(value) => {
-                        if (value === "summary") {
-                            fetchSummary()
-                        }
-                    }}>
+                    <h2 className="text-xl font-semibold mb-2 text-muted">Text Content</h2>
+                    <Tabs defaultValue="extracted" 
+                    // onValueChange={(value) => {
+                    //     if (value === "summary") {
+                    //         fetchSummary()
+                    //     }
+                    // }}
+                    >
                         <TabsList>
                             <TabsTrigger value="extracted">Extracted Text</TabsTrigger>
                             <TabsTrigger value="summary">Summarize</TabsTrigger>
