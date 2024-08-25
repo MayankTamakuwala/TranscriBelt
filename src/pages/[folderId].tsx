@@ -1,4 +1,3 @@
-// src/pages/[folderId].tsx
 import { useRouter } from 'next/router'
 import { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
@@ -10,11 +9,21 @@ import { toast } from "react-hot-toast"
 import { v4 as uuidv4 } from 'uuid'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { S3File, Comment } from '@/types'
-import { useAuth, useUser } from '@clerk/nextjs'
+import { useAuth } from '@clerk/nextjs'
 import Image from 'next/image'
 import EditComment from '@/components/EditComment'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
-export default function ResultPage({ userId: serverUserId }: { userId: string }) {
+export default function ResultPage() {
     const router = useRouter()
     const { folderId } = router.query
     const [videoUrl, setVideoUrl] = useState<string | null>(null)
@@ -28,8 +37,9 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
     const [newComment, setNewComment] = useState('')
     const textRef = useRef<HTMLPreElement>(null)
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
     const { isLoaded, userId } = useAuth()
-    const { user } = useUser()
 
     useEffect(() => {
         if (isLoaded && !userId) {
@@ -39,7 +49,7 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
 
     useEffect(() => {
         const fetchData = async () => {
-            if (folderId && typeof folderId === 'string' && (userId || serverUserId)) {
+            if (folderId && typeof folderId === 'string' && (userId)) {
                 try {
                     const response = await fetch(`/api/s3/listS3Contents?folderName=${encodeURIComponent(folderId)}`)
                     if (!response.ok) {
@@ -74,7 +84,7 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
             }
         }
         fetchData()
-    }, [folderId, userId, serverUserId])
+    }, [folderId, userId])
 
     const fetchSummary = async () => {
         if (folderId && !summary) {
@@ -106,11 +116,11 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
     }
 
     const addComment = async () => {
-        if (newComment && selectedText.text && folderId && typeof folderId === 'string' && (userId || serverUserId)) {
+        if (newComment && selectedText.text && folderId && typeof folderId === 'string' && (userId)) {
             const comment: Comment = {
                 folder_id: folderId,
                 commentId: uuidv4(),
-                commentedBy: userId || serverUserId,
+                commentedBy: userId,
                 text: newComment,
                 ref_text: {
                     startIndex: selectedText.start,
@@ -202,12 +212,62 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
         }
     };
 
+    const handleDeleteComment = async (commentId: string) => {
+        if (folderId && typeof folderId === 'string') {
+            try {
+                const response = await fetch(`/api/dynamodb/deleteComment?folderId=${folderId}&commentId=${commentId}`, {
+                    method: 'DELETE',
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to delete comment');
+                }
+
+                // Remove the comment from the local state
+                setComments(prevComments => prevComments.filter(comment => comment.commentId !== commentId));
+                toast.success("Comment deleted successfully.");
+            } catch (error) {
+                console.error('Error deleting comment:', error);
+                toast.error("Failed to delete comment. Please try again.");
+            }
+        }
+    };
+
+    const openDeleteDialog = (commentId: string) => {
+        setCommentToDelete(commentId);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const closeDeleteDialog = () => {
+        setCommentToDelete(null);
+        setIsDeleteDialogOpen(false);
+    };
+
+    const confirmDelete = () => {
+        if (commentToDelete) {
+            handleDeleteComment(commentToDelete);
+            closeDeleteDialog();
+        }
+    };
+
     const renderComments = () => {
         return comments.map((comment) => (
             <Card key={comment.commentId} className="mb-4">
                 <CardHeader>
-                    <CardTitle className="text-sm font-medium">
-                        <span className='underline'>Comment on:</span> <span className='italic'>{`${comment.ref_text.text}`}</span>
+                    <CardTitle className="text-sm font-medium flex justify-between items-center">
+                        <div>
+                            <span className='underline'>Comment on:</span>
+                            <span className='italic'>{`${comment.ref_text.text}`}</span>
+                        </div>
+                        {comment.commentedBy === userId && (
+                            <Button variant="outline" size="icon" onClick={() => openDeleteDialog(comment.commentId)}>
+                                <Image
+                                    src={require("@/assets/delete.png")}
+                                    alt="Delete"
+                                    className='w-5 h-5'
+                                />
+                            </Button>
+                        )}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -334,6 +394,20 @@ export default function ResultPage({ userId: serverUserId }: { userId: string })
                     </Tabs>
                 </div>
             </div>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure you want to delete this comment?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete your comment.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={closeDeleteDialog}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
