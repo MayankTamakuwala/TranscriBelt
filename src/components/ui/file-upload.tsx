@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import React, { useRef, useState } from "react";
+import React, { ReactNode, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { IconUpload } from "@tabler/icons-react";
 import { useDropzone } from "react-dropzone";
@@ -27,8 +27,10 @@ const secondaryVariant = {
 
 export const FileUpload = ({
   onChange,
+  children
 }: {
   onChange?: (files: File[]) => void;
+  children: ReactNode;
 }) => {
   const [files, setFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,11 +55,11 @@ export const FileUpload = ({
   });
 
   return (
-    <div className="w-1/2" {...getRootProps()}>
+    <div className="w-full lg:w-1/2" {...getRootProps()}>
       <motion.div
         onClick={handleClick}
         whileHover="animate"
-        className="p-10 group/file block rounded-lg cursor-pointer w-full relative overflow-hidden border-2 border-slate-500 border-dotted"
+        className="p-10 group/file block rounded-lg cursor-pointer w-full relative overflow-hidden border-2 border-slate-500 border-dotted bg-muted-foreground"
       >
         <input
           ref={fileInputRef}
@@ -163,6 +165,7 @@ export const FileUpload = ({
               ></motion.div>
             )}
           </div>
+          {children}
         </div>
       </motion.div>
     </div>
@@ -173,7 +176,7 @@ export function GridPattern() {
   const columns = 41;
   const rows = 11;
   return (
-    <div className="flex bg-gray-100 dark:bg-neutral-900 flex-shrink-0 flex-wrap justify-center items-center gap-x-px gap-y-px  scale-105">
+    <div className="flex bg-gray-100 dark:bg-neutral-900 flex-shrink-0 flex-wrap justify-center items-center gap-x-px gap-y-px scale-105">
       {Array.from({ length: rows }).map((_, row) =>
         Array.from({ length: columns }).map((_, col) => {
           const index = row * columns + col;

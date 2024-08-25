@@ -8,6 +8,7 @@ export interface S3File {
 export interface Comment {
 	folder_id: string;
 	commentId: string;
+	commentedBy: string;
 	text: string;
 	ref_text: {
 		startIndex: number;
