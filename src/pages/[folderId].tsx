@@ -1,7 +1,7 @@
+// src/pages/[folderId].tsx
 import { useRouter } from 'next/router'
 import { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
-import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2 } from "lucide-react"
 import parse from 'html-react-parser'
@@ -10,8 +10,11 @@ import { toast } from "react-hot-toast"
 import { v4 as uuidv4 } from 'uuid'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { S3File, Comment } from '@/types'
+import { useAuth, useUser } from '@clerk/nextjs'
+import Image from 'next/image'
+import EditComment from '@/components/EditComment'
 
-export default function ResultPage() {
+export default function ResultPage({ userId: serverUserId }: { userId: string }) {
     const router = useRouter()
     const { folderId } = router.query
     const [videoUrl, setVideoUrl] = useState<string | null>(null)
@@ -24,10 +27,19 @@ export default function ResultPage() {
     const [selectedText, setSelectedText] = useState({ text: '', start: 0, end: 0 })
     const [newComment, setNewComment] = useState('')
     const textRef = useRef<HTMLPreElement>(null)
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+    const { isLoaded, userId } = useAuth()
+    const { user } = useUser()
+
+    useEffect(() => {
+        if (isLoaded && !userId) {
+            router.push('/sign-in?redirect_url=' + router.asPath)
+        }
+    }, [isLoaded, userId, router])
 
     useEffect(() => {
         const fetchData = async () => {
-            if (folderId && typeof folderId === 'string') {
+            if (folderId && typeof folderId === 'string' && (userId || serverUserId)) {
                 try {
                     const response = await fetch(`/api/s3/listS3Contents?folderName=${encodeURIComponent(folderId)}`)
                     if (!response.ok) {
@@ -62,7 +74,7 @@ export default function ResultPage() {
             }
         }
         fetchData()
-    }, [folderId])
+    }, [folderId, userId, serverUserId])
 
     const fetchSummary = async () => {
         if (folderId && !summary) {
@@ -94,10 +106,11 @@ export default function ResultPage() {
     }
 
     const addComment = async () => {
-        if (newComment && selectedText.text && folderId && typeof folderId === 'string') {
+        if (newComment && selectedText.text && folderId && typeof folderId === 'string' && (userId || serverUserId)) {
             const comment: Comment = {
                 folder_id: folderId,
                 commentId: uuidv4(),
+                commentedBy: userId || serverUserId,
                 text: newComment,
                 ref_text: {
                     startIndex: selectedText.start,
@@ -134,7 +147,7 @@ export default function ResultPage() {
     }
 
     const getComments = async () => {
-        try{
+        try {
             const commentsResponse = await fetch(`/api/dynamodb/getComments?folderId=${folderId}`)
             if (commentsResponse.ok) {
                 const commentsData = await commentsResponse.json()
@@ -144,11 +157,50 @@ export default function ResultPage() {
                     return y - x;
                 }))
             }
-        } catch(e: any){
+        } catch (e: any) {
             console.error('Error fetching comments:', e)
             toast.error('Error Fetching Comments')
         }
     }
+
+    const editComment = async (commentId: string, editedText: string) => {
+        if (folderId && typeof folderId === 'string') {
+            try {
+                const response = await fetch('/api/dynamodb/editComment', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        folderId,
+                        commentId,
+                        editedText,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to edit comment');
+                }
+
+                const data = await response.json();
+                // Update the local state
+                setComments(prevComments =>
+                    prevComments.map(comment =>
+                        comment.commentId === commentId
+                            ? { ...comment, text: editedText, edited: true, updatedAt: new Date().toISOString() }
+                            : comment
+                    )
+                );
+
+                setEditingCommentId(null);
+                toast.success("Your comment has been successfully updated.");
+            } catch (error: any) {
+                console.error('Error editing comment:', error);
+                toast.error(error.message || "Failed to edit comment. Please try again.");
+            }
+        }
+    };
 
     const renderComments = () => {
         return comments.map((comment) => (
@@ -159,30 +211,59 @@ export default function ResultPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p>{comment.text}</p>
-                    <p className="text-sm text-gray-500 mt-2">
-                        {new Date(comment.timestamp).toLocaleString()}
-                        {comment.edited && " (edited)"}
-                    </p>
+                    {editingCommentId === comment.commentId ? (
+                        <EditComment
+                            comment={comment}
+                            onSave={(editedText) => editComment(comment.commentId, editedText)}
+                            onCancel={() => setEditingCommentId(null)}
+                        />
+                    ) : (
+                        <>
+                            <p>{comment.text}</p>
+                            <p className="text-sm text-gray-500 mt-2">
+                                {new Date(comment.timestamp).toLocaleString()}
+                                {comment.edited && " (edited)"}
+                            </p>
+                            {comment.commentedBy === userId && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEditingCommentId(comment.commentId)}
+                                    className="mt-2"
+                                >
+                                    Edit
+                                </Button>
+                            )}
+                        </>
+                    )}
                 </CardContent>
             </Card>
-        ))
-    }
+        ));
+    };
 
-    if (loading) {
-        return <div>Loading...</div>
+    if (loading || !isLoaded) {
+        return <div className="flex justify-center items-center h-screen">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
     }
 
     if (error) {
-        return <div>Error: {error}</div>
+        return <div className="container mx-auto py-8">Error: {error}</div>
     }
 
     return (
         <div className="container mx-auto py-8 flex flex-col">
-            <Link href="/">
-                <Button>Back to Home</Button>
-            </Link>
-            <h1 className="text-2xl font-bold mb-4">Result for Folder ID: {folderId}</h1>
+            <div className='flex justify-between w-full items-center pt-14 sticky top-0 bg-white z-40'>
+                <Button variant='ghost' onClick={() => { router.push("/") }} className='flex justify-center items-center gap-2'>
+                    <Image
+                        src={require("@/assets/back.png")}
+                        alt="Back to Dashboard"
+                        className='w-5 h-5'
+                    />
+                    <span>Go Back</span>
+                </Button>
+                <h1 className="text-2xl font-bold mb-4">Result for Folder ID: {folderId}</h1>
+            </div>
             <div className="flex flex-col lg:flex-row lg:space-x-8">
                 {videoUrl && (
                     <div className="mb-8 lg:w-1/2">
@@ -222,7 +303,7 @@ export default function ResultPage() {
                                                 value={newComment}
                                                 onChange={(e) => setNewComment(e.target.value)}
                                                 className="mb-2"
-                                                onKeyPress={(e) => {e.key === "Enter" ? addComment() : null}}
+                                                onKeyPress={(e) => { e.key === "Enter" ? addComment() : null }}
                                             />
                                             <Button onClick={addComment}>Add Comment</Button>
                                         </div>

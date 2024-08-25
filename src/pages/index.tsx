@@ -1,9 +1,11 @@
-import { Boxes } from "@/components/ui/background-boxes";
+// src/pages/index.tsx
 import { Button } from "@/components/ui/button";
 import { FileUpload } from "@/components/ui/file-upload"
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import Link from 'next/link';
+import { SignedIn, SignedOut, useUser } from "@clerk/nextjs";
+import { Boxes } from "@/components/ui/background-boxes";
 
 export default function Home() {
   const acceptedTypes = ["video/mp4", "video/avi", "video/mpeg", "video/webm"]
@@ -14,6 +16,39 @@ export default function Home() {
   const [resultData, setResultData] = useState<{
     folder_id: string;
   } | null>(null)
+
+  const { isLoaded, isSignedIn, user } = useUser();
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn && user) {
+      addUserToDynamoDB(user);
+    }
+  }, [isLoaded, isSignedIn, user]);
+
+  const addUserToDynamoDB = async (user: any) => {
+    try {
+      const response = await fetch('/api/dynamodb/addUser', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.primaryEmailAddress?.emailAddress,
+          name: `${user.firstName} ${user.lastName}`,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add user to DynamoDB');
+      }
+
+      console.log('User added to DynamoDB');
+    } catch (error) {
+      console.error('Error adding user to DynamoDB:', error);
+      toast.error("Failed to sync user data");
+    }
+  };
 
   const handleSubmit = async () => {
     try {
@@ -39,7 +74,6 @@ export default function Home() {
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-
     const checkStatus = async () => {
       if (taskId) {
         try {
@@ -47,7 +81,6 @@ export default function Home() {
           const data = await response.json()
           setTaskStatus(data.status)
           setProgress(data.progress * 100)
-
           if (data.status === 'Completed') {
             clearInterval(intervalId)
             setResultData({
@@ -63,11 +96,9 @@ export default function Home() {
         }
       }
     }
-
     if (taskId) {
       intervalId = setInterval(checkStatus, 5000) // Check every 5 seconds
     }
-
     return () => {
       if (intervalId) {
         clearInterval(intervalId)
@@ -76,30 +107,47 @@ export default function Home() {
   }, [taskId])
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-between">
-      <div className="relative w-full overflow-hidden flex flex-col items-center justify-around h-screen">
-        <Boxes />
-        <FileUpload onChange={(e: File[]) => { setVideo(e) }} />
-        <Button onClick={handleSubmit} className="z-50" disabled={taskStatus === 'Pending' || taskStatus === 'Processing'}>
-          {taskStatus === 'Pending' || taskStatus === 'Processing' ? 'Processing...' : 'Send Video'}
-        </Button>
-        {taskStatus && (
-          <div className="z-50 mt-4">
-            <p>Status: {taskStatus}</p>
-            <p>Progress: {progress.toFixed(2)}%</p>
-          </div>
-        )}
-        {resultData && (
-          <div className="z-50 mt-4">
-            <p>Processing completed!</p>
-            <Link href={`/${resultData.folder_id}`}>
-              <Button className="mt-2">
-                View Results
-              </Button>
+    <div className="relative w-full overflow-hidden flex flex-col items-center justify-around h-screen bg-slate-950">
+      <Boxes/>
+      <SignedIn>
+        <div className=" space-y-4  w-full h-full flex flex-col justify-around items-center">
+          <FileUpload onChange={(e: File[]) => { setVideo(e) }} >
+            {taskStatus && (
+              <div className="z-50 mt-4">
+                <p>Status: {taskStatus}</p>
+                <p>Progress: {progress.toFixed(2)}%</p>
+              </div>
+            )}
+            {resultData && (
+              <div className="z-50 mt-4">
+                <p>Processing completed!</p>
+                <Link href={`/${resultData.folder_id}`}>
+                  <Button className="mt-2">
+                    View Results
+                  </Button>
+                </Link>
+              </div>
+            )}
+          </FileUpload>
+          <Button onClick={handleSubmit} className="z-50 hover:text-white hover:shadow-2xl hover:shadow-cyan-500" disabled={taskStatus === 'Pending' || taskStatus === 'Processing'}>
+            {taskStatus === 'Pending' || taskStatus === 'Processing' ? 'Processing...' : 'Send Video'}
+          </Button>
+        </div>
+      </SignedIn>
+      <SignedOut>
+        <div className="z-10 space-y-4 text-center bg-muted p-4 rounded-md">
+          <h1 className="text-2xl font-bold">Welcome to Video Processor</h1>
+          <p>Please sign in or sign up to use the application.</p>
+          <div className="space-x-4">
+            <Link href="/sign-in">
+              <Button>Sign In</Button>
+            </Link>
+            <Link href="/sign-up">
+              <Button>Sign Up</Button>
             </Link>
           </div>
-        )}
-      </div>
-    </main>
+        </div>
+      </SignedOut>
+    </div>
   );
 }
