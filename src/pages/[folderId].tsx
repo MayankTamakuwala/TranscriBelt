@@ -27,7 +27,7 @@ export default function ResultPage() {
         const fetchData = async () => {
             if (folderId) {
                 try {
-                    const response = await fetch(`/api/listS3Contents?folderName=${encodeURIComponent(folderId as string)}`)
+                    const response = await fetch(`/api/s3/listS3Contents?folderName=${encodeURIComponent(folderId as string)}`)
                     if (!response.ok) {
                         throw new Error('Failed to fetch S3 contents')
                     }
@@ -36,11 +36,11 @@ export default function ResultPage() {
                     const textFile = data.files.find((file: S3File) => file.name.endsWith('.txt'))
 
                     if (videoFile) {
-                        setVideoUrl(`/api/getS3Video?folderId=${folderId}&fileName=${videoFile.name}`)
+                        setVideoUrl(`/api/s3/getS3Video?folderId=${folderId}&fileName=${videoFile.name}`)
                     }
 
                     if (textFile) {
-                        const textResponse = await fetch(`/api/getS3Text?folderId=${folderId}&fileName=${textFile.name}`)
+                        const textResponse = await fetch(`/api/s3/getS3Text?folderId=${folderId}&fileName=${textFile.name}`)
                         if (!textResponse.ok) {
                             throw new Error(`HTTP error! status: ${textResponse.status}`)
                         }
@@ -63,7 +63,7 @@ export default function ResultPage() {
         if (folderId && !summary) {
             setSummaryLoading(true)
             try {
-                const response = await fetch(`/api/getSummary?folderId=${folderId}`)
+                const response = await fetch(`/api/dynamodb/getSummary?folderId=${folderId}`)
                 if (!response.ok) {
                     throw new Error('Failed to fetch summary')
                 }
