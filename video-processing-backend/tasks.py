@@ -12,14 +12,15 @@ import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from datetime import timedelta
 from dotenv import load_dotenv
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 s3obj = boto3.client("s3", aws_access_key_id = os.environ.get("AWS_ACCESS_KEY_ID"),
-                     aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-                     region_name=os.environ.get("AWS_REGION"))
+                     aws_secret_access_key = os.environ.get("AWS_SECRET_ACCESS_KEY"),
+                     region_name = os.environ.get("AWS_REGION"))
 
 celery_app = Celery('tasks', broker='redis://localhost:6379', backend='redis://localhost:6379')
 
@@ -51,16 +52,19 @@ def process_video_task(self, video_path: str):
         self.update_state(state='PROGRESS', meta={'status': 'SubRip Subtitle Made', 'progress': 0.8})
         logger.info("SRT file generation completed")
 
-        transcriptFile = create_srt_file(srt_content)
-        # file_upload_to_s3(transcriptFile)
 
         final_video = add_captions_to_video(video_path, transcript, audio_path)
         logger.info(f"Video processing completed. Final video: {final_video}")
-        print("\n\n\n\nAjay Rocks\n\n", os.environ.get("AWS_REGION"),
-              "\n\n\n", os.environ.get("AWS_SECRET_ACCESS_KEY"), "\n\n\n", os.environ.get("AWS_ACCESS_KEY_ID"),  "\n\n\n")
-        file_upload_to_s3(final_video, os.environ.get(
-            "S3_BUCKET_NAME"), f"test2/{os.path.basename(final_video)}")
-        return {'status': 'Completed', 'progress': 1.0, 'result_url': f"/download/{os.path.basename(final_video)}"}
+
+        transcriptfile = create_srt_file(os.path.basename(final_video), srt_content)
+        folder_id = uuid.uuid4()
+        file_upload_to_s3(transcriptfile, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(transcriptfile)}")
+        file_upload_to_s3(final_video, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(final_video)}")
+
+        file1 = os.path.basename(final_video)
+        file2 = os.path.basename(transcriptfile)
+        os.remove(transcriptfile)
+        return {'status': 'Completed', 'progress': 1.0, 'result_video_url': f"{file1}", 'result_txt_url': f"{file2}", 'folder_id': f"{folder_id}"}
     
     except Exception as e:
         logger.error(f"Error in video processing task: {str(e)}", exc_info=True)
@@ -133,12 +137,12 @@ def generate_srt(transcription_data):
     logger.info("SRT file generation completed")
     return srt_content
 
-def create_srt_file(data):
-    file  = open("hello32.txt",'w')
+def create_srt_file(filename,data):
+    filename = filename[0:len(filename)-4]
+    file  = open(f"{filename}.txt",'w')
     file.write(data)
     file.close()
-    return file
-
+    return os.path.join(os.getcwd(), f"{filename}.txt")
 
 def file_upload_to_s3(file_path: str, bucket_name: str, s3_key: str) -> str:
     """
