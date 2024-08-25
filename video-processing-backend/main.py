@@ -30,6 +30,7 @@ app.add_middleware(
 # Redis client for caching and rate limiting
 redis_client = redis.Redis(host='localhost', port=6379, db=0)
 
+
 class ProcessingStatus(BaseModel):
     """
     Represents the status of a video processing task.
@@ -43,18 +44,20 @@ class ProcessingStatus(BaseModel):
     progress: float = 0
     result_url: Optional[str] = None
 
+
 async def rate_limit(request: Request, times: int = 10, seconds: int = 60):
     client_ip = request.client.host
     key = f"ratelimit:{client_ip}:upload"
     current = redis_client.get(key)
-    
+
     if current is not None and int(current) >= times:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    
+
     pipe = redis_client.pipeline()
     pipe.incr(key)
     pipe.expire(key, seconds)
     pipe.execute()
+
 
 @app.post("/upload")
 async def upload_video(
@@ -71,8 +74,10 @@ async def upload_video(
     """
     try:
         # Log request details
-        logger.info(f"Received upload request. Content-Type: {request.headers.get('content-type')}")
-        logger.info(f"File details - Filename: {file.filename}, Content-Type: {file.content_type}")
+        logger.info(
+            f"Received upload request. Content-Type: {request.headers.get('content-type')}")
+        logger.info(
+            f"File details - Filename: {file.filename}, Content-Type: {file.content_type}")
 
         # Ensure the file is a video
         if not file.content_type.startswith('video/'):
@@ -106,6 +111,7 @@ async def upload_video(
         logger.error(f"Error uploading video: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
+
 @app.get("/status/{task_id}")
 async def get_status(task_id: str):
     """
@@ -127,18 +133,20 @@ async def get_status(task_id: str):
     cached_status = redis_client.get(f"status:{task_id}")
     if cached_status:
         return json.loads(cached_status)
-    
+
     task_result = AsyncResult(task_id)
     if task_result.state == 'PENDING':
         status = {'status': 'Pending', 'progress': 0}
     elif task_result.state != 'FAILURE':
         status = task_result.info
     else:
-        status = {'status': 'Error', 'progress': 1.0, 'error': str(task_result.result)}
-    
+        status = {'status': 'Error', 'progress': 1.0,
+                  'error': str(task_result.result)}
+
     # Cache the status for 5 seconds
     redis_client.setex(f"status:{task_id}", 5, json.dumps(status))
     return status
+
 
 @app.get("/download/{filename}")
 async def download_video(filename: str):
