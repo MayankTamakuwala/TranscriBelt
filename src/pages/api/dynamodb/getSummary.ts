@@ -19,7 +19,7 @@ function formatSummary(text: string): string {
 		if (line.trim().startsWith("*")) {
 			if (!inList) {
 				inList = true;
-				return "<ul className='list list-disc ml-7'><li>" + line.trim().substring(1).trim() + "</li>";
+				return "<ul className='list list-disc ml-8'><li>" + line.trim().substring(1).trim() + "</li>";
 			} else {
 				return "<li>" + line.trim().substring(1).trim() + "</li>";
 			}
