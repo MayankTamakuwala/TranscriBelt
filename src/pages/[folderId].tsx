@@ -1,17 +1,15 @@
 import { useRouter } from 'next/router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2 } from "lucide-react"
-import parse from 'html-react-parser';
-
-interface S3File {
-    name: string
-    path: string
-    size: number
-    lastModified: string
-}
+import parse from 'html-react-parser'
+import { Input } from "@/components/ui/input"
+import { toast } from "react-hot-toast"
+import { v4 as uuidv4 } from 'uuid'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { S3File, Comment } from '@/types'
 
 export default function ResultPage() {
     const router = useRouter()
@@ -22,12 +20,16 @@ export default function ResultPage() {
     const [loading, setLoading] = useState(true)
     const [summaryLoading, setSummaryLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [comments, setComments] = useState<Comment[]>([])
+    const [selectedText, setSelectedText] = useState({ text: '', start: 0, end: 0 })
+    const [newComment, setNewComment] = useState('')
+    const textRef = useRef<HTMLPreElement>(null)
 
     useEffect(() => {
         const fetchData = async () => {
-            if (folderId) {
+            if (folderId && typeof folderId === 'string') {
                 try {
-                    const response = await fetch(`/api/s3/listS3Contents?folderName=${encodeURIComponent(folderId as string)}`)
+                    const response = await fetch(`/api/s3/listS3Contents?folderName=${encodeURIComponent(folderId)}`)
                     if (!response.ok) {
                         throw new Error('Failed to fetch S3 contents')
                     }
@@ -48,10 +50,13 @@ export default function ResultPage() {
                         setTextContent(text)
                     }
 
+                    // Fetch comments
+                    await getComments()
+
                     setLoading(false)
                 } catch (error) {
-                    console.error('Error fetching result data:', error)
-                    setError('Failed to load result data')
+                    console.error('Error fetching data:', error)
+                    setError('Failed to load data')
                     setLoading(false)
                 }
             }
@@ -78,6 +83,92 @@ export default function ResultPage() {
         }
     }
 
+    const handleTextSelection = () => {
+        const selection = window.getSelection()
+        if (selection && selection.toString().length > 0) {
+            const range = selection.getRangeAt(0)
+            const start = range.startOffset
+            const end = range.endOffset
+            setSelectedText({ text: selection.toString(), start, end })
+        }
+    }
+
+    const addComment = async () => {
+        if (newComment && selectedText.text && folderId && typeof folderId === 'string') {
+            const comment: Comment = {
+                folder_id: folderId,
+                commentId: uuidv4(),
+                text: newComment,
+                ref_text: {
+                    startIndex: selectedText.start,
+                    endIndex: selectedText.end,
+                    text: selectedText.text
+                },
+                timestamp: new Date().toISOString(),
+                edited: false
+            }
+
+            try {
+                const response = await fetch('/api/dynamodb/addComment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(comment),
+                })
+
+                if (!response.ok) {
+                    throw new Error('Failed to add comment')
+                }
+
+                setComments([...comments, comment])
+                await getComments()
+                setNewComment('')
+                setSelectedText({ text: '', start: 0, end: 0 })
+                toast.success("Your comment has been successfully added.")
+            } catch (error) {
+                console.error('Error adding comment:', error)
+                toast.error("Failed to add comment. Please try again.")
+            }
+        }
+    }
+
+    const getComments = async () => {
+        try{
+            const commentsResponse = await fetch(`/api/dynamodb/getComments?folderId=${folderId}`)
+            if (commentsResponse.ok) {
+                const commentsData = await commentsResponse.json()
+                setComments(commentsData.comments.sort((x: any, y: any) => {
+                    x = new Date(x.timestamp),
+                        y = new Date(y.timestamp);
+                    return y - x;
+                }))
+            }
+        } catch(e: any){
+            console.error('Error fetching comments:', e)
+            toast.error('Error Fetching Comments')
+        }
+    }
+
+    const renderComments = () => {
+        return comments.map((comment) => (
+            <Card key={comment.commentId} className="mb-4">
+                <CardHeader>
+                    <CardTitle className="text-sm font-medium">
+                        <span className='underline'>Comment on:</span> <span className='italic'>{`${comment.ref_text.text}`}</span>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p>{comment.text}</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                        {new Date(comment.timestamp).toLocaleString()}
+                        {comment.edited && " (edited)"}
+                    </p>
+                </CardContent>
+            </Card>
+        ))
+    }
+
     if (loading) {
         return <div>Loading...</div>
     }
@@ -96,7 +187,7 @@ export default function ResultPage() {
                 {videoUrl && (
                     <div className="mb-8 lg:w-1/2">
                         <h2 className="text-xl font-semibold mb-2">Processed Video</h2>
-                        <video controls className="w-full">
+                        <video controls className="w-full rounded-md">
                             <source src={videoUrl} type="video/mp4" />
                             Your browser does not support the video tag.
                         </video>
@@ -112,12 +203,31 @@ export default function ResultPage() {
                         <TabsList>
                             <TabsTrigger value="extracted">Extracted Text</TabsTrigger>
                             <TabsTrigger value="summary">Summarize</TabsTrigger>
+                            <TabsTrigger value="comments">Comments</TabsTrigger>
                         </TabsList>
                         <TabsContent value="extracted">
                             {textContent ? (
-                                <pre className="bg-gray-100 p-4 rounded overflow-auto max-h-[calc(100vh-300px)]">
-                                    {textContent}
-                                </pre>
+                                <div>
+                                    <pre
+                                        ref={textRef}
+                                        className="bg-gray-100 p-4 rounded overflow-auto max-h-[calc(100vh-300px)]"
+                                        onMouseUp={handleTextSelection}
+                                    >
+                                        {textContent}
+                                    </pre>
+                                    {selectedText.text && (
+                                        <div className="mt-4">
+                                            <Input
+                                                placeholder="Type your comment here"
+                                                value={newComment}
+                                                onChange={(e) => setNewComment(e.target.value)}
+                                                className="mb-2"
+                                                onKeyPress={(e) => {e.key === "Enter" ? addComment() : null}}
+                                            />
+                                            <Button onClick={addComment}>Add Comment</Button>
+                                        </div>
+                                    )}
+                                </div>
                             ) : (
                                 <div>No extracted text available.</div>
                             )}
@@ -134,6 +244,11 @@ export default function ResultPage() {
                             ) : (
                                 <div>No summary available.</div>
                             )}
+                        </TabsContent>
+                        <TabsContent value="comments">
+                            <div className="overflow-auto max-h-[calc(100vh-300px)]">
+                                {comments.length > 0 ? renderComments() : <div>No comments yet.</div>}
+                            </div>
                         </TabsContent>
                     </Tabs>
                 </div>
