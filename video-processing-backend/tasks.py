@@ -11,6 +11,7 @@ import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError
 from datetime import timedelta
 from dotenv import load_dotenv
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -57,8 +58,8 @@ def process_video_task(self, video_path: str):
 
         transcriptfile = create_srt_file(os.path.basename(final_video), srt_content)
         folder_id = uuid.uuid4()
-        file_upload_to_s3(transcriptfile, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(transcriptfile)}")
-        file_upload_to_s3(final_video, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(final_video)}")
+        file_upload_to_s3(transcriptfile, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(transcriptfile)}", "txt", folder_id)
+        file_upload_to_s3(final_video, os.environ.get("S3_BUCKET_NAME"), f"{folder_id}/{os.path.basename(final_video)}", "video", folder_id)
 
         os.remove(transcriptfile)
         return {'status': 'Completed', 'progress': 1.0, 'folder_id': f"{folder_id}"}
@@ -134,41 +135,101 @@ def generate_srt(transcription_data):
     logger.info("SRT file generation completed")
     return srt_content
 
-def create_srt_file(filename,data):
-    filename = filename[0:len(filename)-4]
-    file  = open(f"{filename}.txt",'w')
-    file.write(data)
-    file.close()
+def create_srt_file(filename, data):
+    """
+    Creates a new .txt file with the provided data and returns its path.
+
+    Args:
+        filename (str): The name of the file to be created (without the extension).
+        data (str): The content to be written to the file.
+
+    Returns:
+        str: The path to the newly created file.
+
+    Example:
+        >>> create_srt_file("example", "Hello, World!")
+        '/path/to/current/directory/example.txt'
+    """
+    filename = os.path.splitext(filename)[0]
+    with open(f"{filename}.txt", 'w') as file:
+        file.write(data)
     return os.path.join(os.getcwd(), f"{filename}.txt")
 
-def file_upload_to_s3(file_path: str, bucket_name: str, s3_key: str) -> str:
+def file_upload_to_s3(file_path: str, bucket_name: str, s3_key: str, type: str, folder_id: str) -> str:
     """
-    Upload a file to an S3 bucket.
+    Uploads a file to Amazon S3 and sends a message to Amazon SQS if the file is a text file.
 
-    :param file_path: The local path to the file to upload.
-    :param bucket_name: The name of the S3 bucket to upload to.
-    :param s3_key: The S3 object key (i.e., the file path within the bucket).
-    :param content_type: The content type (MIME type) of the file. Optional.
-    :return: The URL of the uploaded file in S3.
+    Args:
+        file_path (str): The path to the file to be uploaded.
+        bucket_name (str): The name of the S3 bucket where the file will be uploaded.
+        s3_key (str): The key under which the file will be stored in the S3 bucket.
+        type (str): The type of the file (e.g. 'txt', 'pdf', etc.).
+        folder_id (str): The ID of the folder where the file will be stored.
+
+    Returns:
+        str: The URL of the uploaded file.
+
+    Raises:
+        Exception: If the AWS credentials are not available or incomplete.
+        ValueError: If the AWS_REGION or SQS_QUEUE_URL environment variables are not set.
+        Exception: If the file upload to S3 or SQS message sending fails.
+
+    Example:
+        >>> file_path = "/path/to/example.txt"
+        >>> bucket_name = "my-bucket"
+        >>> s3_key = "example.txt"
+        >>> type = "txt"
+        >>> folder_id = "12345"
+        >>> file_url = file_upload_to_s3(file_path, bucket_name, s3_key, type, folder_id)
+        >>> print(file_url)
+        https://my-bucket.s3.amazonaws.com/example.txt
     """
-
     try:
+        region_name = os.environ.get("AWS_REGION")
+        if not region_name:
+            raise ValueError("AWS_REGION environment variable is not set")
+
+        s3 = boto3.client("s3", region_name=region_name)
+        sqs = boto3.client("sqs", region_name=region_name)
+        queue_url = os.environ.get("SQS_QUEUE_URL")
+
+        if not queue_url:
+            raise ValueError("SQS_QUEUE_URL environment variable is not set")
 
         # Upload the file to S3
-        s3obj.upload_file(
-            Filename=file_path,  # Local file path
-            Bucket=bucket_name,  # S3 bucket name
-            Key=s3_key          # S3 key (path in the bucket)
+        s3.upload_file(
+            Filename=file_path,
+            Bucket=bucket_name,
+            Key=s3_key
         )
 
-        # Return the file URL
+        # Construct the file URL
         file_url = f"https://{bucket_name}.s3.amazonaws.com/{s3_key}"
+
+        # Send a message to SQS only for txt files
+        if type == 'txt':
+            message_body = json.dumps({
+                "bucket": bucket_name,
+                "key": s3_key,
+                "url": file_url,
+                "folder_id": str(folder_id)
+            })
+            sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=message_body
+            )
+
         return file_url
 
     except (NoCredentialsError, PartialCredentialsError) as e:
-        raise Exception("AWS credentials not available") from e
+        logger.error(f"AWS credentials error: {str(e)}")
+        raise Exception("AWS credentials not available or incomplete") from e
+    except ValueError as e:
+        logger.error(f"Configuration error: {str(e)}")
+        raise
     except Exception as e:
-        raise Exception("File upload to S3 failed") from e
+        logger.error(f"Error in file upload or SQS message sending: {str(e)}")
+        raise Exception("File upload to S3 or SQS message sending failed") from e
 
 def get_optimal_font_scale(text: str, width: int) -> float:
     """
