@@ -63,12 +63,10 @@ export default async function handler(
 			return res.status(500).json({ message: "Failed to update comments" });
 		}
 
-		res
-			.status(200)
-			.json({
-				message: "Comment removed successfully",
-				updatedComments: result.Attributes.comments,
-			});
+		res.status(200).json({
+			message: "Comment removed successfully",
+			updatedComments: result.Attributes.comments,
+		});
 	} catch (error) {
 		console.error("Error removing comment:", error);
 		res.status(500).json({ message: "Error removing comment" });

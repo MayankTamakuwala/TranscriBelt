@@ -12,7 +12,7 @@ export default function HeaderLayout({ children }: LayoutProps) {
             <header className="fixed top-0 left-0 right-0 px-4 lg:px-0 h-14 border-b-2 bg-white z-50">
                 <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
                     <Link href="/" className="text-xl font-bold text-gray-800">
-                        App Name
+                        TranscriBelt
                     </Link>
                     <UserButton afterSignOutUrl="/" />
                 </div>
