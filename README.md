@@ -152,5 +152,6 @@ You can deploy the frontend to Vercel or any other hosting platform that support
 - **OpenAI Whisper** for transcription services
 - **AWS** for cloud services
 - **Redis** for caching support
+- **Celery** for tasks queueing
 
 Make sure to replace placeholder texts with actual information (like paths, AWS configurations, etc.). You might also want to add or modify sections based on your project’s specific needs.
