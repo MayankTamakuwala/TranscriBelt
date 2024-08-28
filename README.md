@@ -79,13 +79,29 @@ npm run dev
 cd video-processing-backend
 ```
 
-3. Make virtual environment and install backend dependencies:
+3. Make virtual environment:
 ```bash
 python3.11 -m venv venv
+```
+
+4. Activate Virtual Environment:
+
+	Windows:	
+	```
+	.\venv\Scripts\activate
+	```
+
+	MacOS:
+	```
+	source venv/bin/activate
+	```
+
+5. Install Backend Dependencies
+```bash
 pip install -r requirements.txt
 ```
 
-4. Run the Backend Server:
+6. Run the Backend Server:
 ```bash
 fastapi dev main.py
 ```
@@ -101,7 +117,27 @@ redis-server
 
 #### Terminal 4: Celery Server
 
-1. Run Celery Server
+1. `cd` to the project root folder
+
+2. Change directory to backend:
+```bash
+cd video-processing-backend
+```
+
+3. Activate Virtual Environment:
+
+	Windows:	
+	```
+	.\venv\Scripts\activate
+	```
+
+	MacOS:
+	```
+	source venv/bin/activate
+	```
+
+
+4. Run Celery Server
 ```bash
 celery -A tasks worker --loglevel=INFO --pool=solo
 ```
@@ -153,5 +189,3 @@ You can deploy the frontend to Vercel or any other hosting platform that support
 - **AWS** for cloud services
 - **Redis** for caching support
 - **Celery** for tasks queueing
-
-Make sure to replace placeholder texts with actual information (like paths, AWS configurations, etc.). You might also want to add or modify sections based on your project’s specific needs.
