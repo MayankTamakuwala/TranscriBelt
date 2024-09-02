@@ -178,6 +178,10 @@ SQS_QUEUE_URL=your_aws_sqs_url
 
 You can deploy the frontend to Vercel or any other hosting platform that supports Next.js. The backend can be deployed to AWS Lambda or any other server environment that supports FastAPI.
 
+## Demo
+
+Checkout the video demo on <a href="https://www.youtube.com/watch?v=P9jkTA1EJlI">YouTube</a>
+
 ## Usage
 
 - Upload a video from the frontend.
@@ -189,3 +193,5 @@ You can deploy the frontend to Vercel or any other hosting platform that support
 - **AWS** for cloud services
 - **Redis** for caching support
 - **Celery** for tasks queueing
+
+
