@@ -181,10 +181,8 @@ export default function ResultPage() {
     }
 
     const getCommentSummary = async (comment: Comment[]) => {
-        // console.log("reached here")
         const comments = comment.map((item) => item.text);
         const strComments = comments.toString()
-        // console.log(strComments)
         try {
             const response = await fetch('/api/dynamodb/getCommentSummary', {
                 method: 'POST',
@@ -199,7 +197,6 @@ export default function ResultPage() {
             }
 
             const data = (await response.json()).data
-            // console.log(data)
 
             setCommentSummary(data)
             toast.success("Your summary has been generated.")

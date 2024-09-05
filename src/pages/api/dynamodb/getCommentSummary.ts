@@ -5,7 +5,6 @@ export default async function handler(
     res: NextApiResponse
 ) {
     const { items,summary } = req.body;
-    // console.log(items)
 
     try {
         const response = await fetch(
