@@ -1,5 +1,7 @@
 <div align="center">
-    <img src = "https://github.com/MayankTamakuwala/TranscriBelt/blob/main/public/logo.png" width="300">
+	<a href="https://www.youtube.com/watch?v=P9jkTA1EJlI" target="_blank">
+    	<img src = "https://github.com/MayankTamakuwala/TranscriBelt/blob/main/public/logo.png" width="300" alt="TranscriBelt - Youtube Video">
+	</a>
     <h1 align="center">TranscriBelt</h1>
 </div>
 
